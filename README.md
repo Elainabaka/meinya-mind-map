@@ -51,7 +51,7 @@ For the page in the picture, add `--format html --out report.html`. It is one fi
 
 1. **Every finding carries its proof.** A file and line, or a commit id with its date and subject. You can check the checker.
 2. **It reads history.** For each doc line it asks git when the line was written and what the repo held at that commit. "This file was here when you wrote the line, and commit `b81c7e1` moved it" is an error. "This name was never in the repo" is usually an example, another project or the reader's own file, so it stays quiet.
-3. **No proof, no warning.** Plans, changelogs, decision logs and dated posts describe another time on purpose; they are read with looser rules. Findings come in three levels and the lowest one, notes, is hidden unless you ask.
+3. **No proof, no warning.** Plans, changelogs, decision logs and dated posts describe another time on purpose; they are read with looser rules. So is a line whose context says it is a record or a plan: under a `## Resolved` or `## Tasks` heading, in a table row marked "extracted", in an item marked "(done: #6)" or still an open `- [ ]` box, in a sentence with a date and a past verb. Such a finding becomes a note and says which words made it one. Findings come in three levels and the lowest one, notes, is hidden unless you ask.
 4. **Facts by default, guesses on request.** Some findings rest on a fact of the repo (a link to a file that is not there, a file git saw deleted, a script `package.json` does not have). Others rest on a reading of the text (a name that seems gone, a path that seems made up), and on repos we had never seen those were wrong more often than right. On the command line, in CI and in pre-commit, the second kind are notes unless you pass `--all`. Coding agents (MCP and the hook) get both, with a line asking them to read each one in context: in our test an agent left every false alarm alone.
 5. **It only reads.** It never edits a doc or a file of code, never runs code from the repo it checks, and never opens files that usually hold secrets.
 
@@ -73,7 +73,7 @@ For the page in the picture, add `--format html --out report.html`. It is one fi
 
 Guesses, notes on the command line unless `--all`: `symbol-gone`, `symbol-removed-now`, `path-missing`, `path-typo`, `make-target-missing`, `subcommand-missing`, `decision-unknown`, `copies-diverged`, `version-mismatch`, `dep-mismatch`.
 
-Notes, shown with `--severity info`: `stale-risk` (the code a doc describes changed after the doc), `link-unverified` and `anchor-unverified` (an address only the built site can confirm), `foreign-links` (a doc copied in from another project).
+Notes, shown with `--severity info`: `stale-risk` (the code a doc describes changed after the doc), `link-unverified` and `anchor-unverified` (an address only the built site can confirm), `link-outside` (a link that leaves the repo), `foreign-links` (a doc copied in from another project).
 
 ### A rule in words that the machine enforces
 

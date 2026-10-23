@@ -23,13 +23,15 @@ from collections import Counter, defaultdict
 
 from .codeindex import IDENT, CodeIndex, stdlib_names
 from .cost import AGENT_NAMES, AGENT_PATHS
-from .claims import has_placeholder
+from .claims import clean_path_text, has_placeholder, path_strength, split_cmd
 from .doctype import is_post
 from .files import GENERATED_DIRS, Inventory, is_private, kind_of
 from .gitinfo import Git, day
 from .globs import match_any
 from .mdscan import scan, skeleton
 from .model import ERROR, INFO, WARNING, Claim, Finding, evidence_text, fingerprint, message
+from . import mood
+from .mood import DONE_CELL, DONE_LINE
 
 FORBID = re.compile(r"^forbid\s+(?:/(.+)/([imsx]*)|\"([^\"]+)\"|'([^']+)')(?:\s+in\s+(.+))?$", re.I)
 NUMBER = re.compile(r"\d+(?:[.,/]\d+)*")
@@ -40,12 +42,18 @@ GONE_WORDS = re.compile(
     r"|(?<!\w)(?:xóa|xoá|gỡ|đổi tên|thay bằng|đã bỏ|bỏ hẳn|đã gộp|gộp vào|dời sang|đã dời|không còn|"
     r"trước đây|cũ|không dùng|đừng dùng|cấm dùng)(?!\w)"
     r"|\b(?:do not use|don't use|never use|avoid)\b", re.I)
-DONE_CELL = re.compile(r"^\s*(?:\**\s*)?(?:(?:done|xong|đã xong|hoàn tất|hoàn thành|closed|merged|shipped)\b|[✅☑✔])", re.I)
-DONE_LINE = re.compile(r"^\s*[-*+]\s+\[[xX]\]|✅|\bDONE\b|\bXONG\b")
 JS_GLOBALS = {"console", "window", "document", "JSON", "Math", "process", "Object", "Array", "Promise",
               "navigator", "localStorage", "sessionStorage", "globalThis", "Number", "String", "Date",
               "Reflect", "Symbol", "Intl", "fetch", "require", "module", "exports", "Buffer"}
 STRUCTURAL = {"table-orphan", "table-shape", "rule-invalid", "rule-violation"}
+# findings the mood of the line (mood.py) does not touch: a link is clicked whatever the sentence says, a
+# decision id is read against the log's own history, and the structural ones are not claims at all
+MOOD_EXEMPT = STRUCTURAL | {"link-broken", "link-case", "anchor-missing", "anchor-unverified", "link-unverified",
+                            "foreign-links", "decision-unknown", "decision-superseded", "decision-amended",
+                            "copies-diverged", "stale-risk"}
+# a doc that is the source of another doc: `README.src.md` woven into `README.md`, `guide.tmpl.md`. Its links
+# are written for the page it builds, which sits somewhere else
+SOURCE_DOC = re.compile(r"\.(?:src|tmpl|template|tpl|in|j2|jinja2?|hbs|ejs|mustache)\.(?:md|mdx|markdown)$", re.I)
 # "it existed, now it is gone" findings; in a sentence about the past they are a record, not a claim about now
 PAST_RULES = {"symbol-gone", "symbol-removed-now", "path-gone", "path-moved", "path-removed-now",
               "flag-removed", "subcommand-missing"}
@@ -194,6 +202,7 @@ class Checker:
         self._queues: dict[str, bool] = {}
         self._other_projects: dict[str, bool] = {}
         self._own_names: set | None = None
+        self._moods: dict = {}
 
     # -- helpers -------------------------------------------------------------
     def git_for(self, rel: str) -> Git | None:
@@ -207,8 +216,16 @@ class Checker:
         path = path or (c.doc if c else "")
         line = line or (c.line if c else 1)
         col = col if c is None else c.col
-        if sev != INFO and rule not in STRUCTURAL and (self.kind(path) == "plan" or self._done_line(path, line)):
-            sev = INFO          # plans describe intent; finished items describe the past
+        evidence = list(evidence or [])
+        if sev != INFO and rule not in STRUCTURAL and self.kind(path) in ("plan", "template"):
+            sev = INFO          # plans describe intent; a template describes its input
+        if sev != INFO and c is not None and rule not in MOOD_EXEMPT:
+            m = self.mood(c)
+            if m is not None:        # a record or a plan: the line meant the code of another time (mood.py)
+                sev = INFO
+                evidence.append({"kind": "doc", "path": path, "line": m.line, "note": m.reason})
+        if sev != INFO and rule not in STRUCTURAL and (c is None or rule in MOOD_EXEMPT) and self._done_line(path, line):
+            sev = INFO          # a finished item describes the past
         if sev != INFO and c is not None and rule in PAST_RULES and (self._past(c) or self._retired_page(c.doc)
                                                                    or is_post(c.doc) or self._translated(c.doc)):
             sev = INFO      # a dated post tells of its day; a translation follows its source page, which is warned
@@ -244,6 +261,27 @@ class Checker:
             from .mdscan import split_cells
             return any(DONE_CELL.match(cell) for cell in split_cells(text)[1:])
         return bool(DONE_LINE.search(text))
+
+    def mood(self, c: Claim):
+        """How the line means its claim: None when it describes the code as it is, else the record or
+        plan it is part of (see mood.py), with the text that says so."""
+        d = self.docs.get(c.doc)
+        if d is None:
+            return None
+        key = (c.doc, c.line)
+        if key not in self._moods:
+            self._moods[key] = mood.assess(d, c.line, self.sentence(c))
+        return self._moods[key]
+
+    def _coedited(self, c: Claim, git: Git | None, sha: str, path: str) -> list:
+        """The commit that took the thing away also edited this doc: the author had the doc open and left the
+        line, so it is a record more often than an oversight. One evidence line, and the finding becomes a
+        note; not in an agent's instruction file, where a stale line does harm and the proof is only this."""
+        if not git or not sha or sha == "HEAD" or _agent_doc(c.doc) or self.mood(c) is not None \
+                or not git.touched(sha, c.doc):
+            return []           # when the line itself says it is a record, that is the reason to give
+        return [{"kind": "git", "rev": sha[:10], "path": c.doc,
+                 "note": "this commit also edited the doc and kept the line"}]
 
     def sentence(self, c: Claim) -> str:
         """The sentence holding the claim, read across the hard-wrapped lines of its paragraph.
@@ -440,6 +478,13 @@ class Checker:
             if hit:
                 c.extra["far"] = True       # same name in another project: exists, but not checked further
                 return hit
+        if c.kind == "link" and SOURCE_DOC.search(c.doc):
+            # `[LICENSE](./LICENSE)` in `README.src.md`: written for the `README.md` the source builds
+            t = re.sub(r"^(?:\.\./)+", "", posixpath.normpath(c.target.replace("\\", "/")))
+            hit = self.paths.suffix(t) if t not in (".", "") else None
+            if hit:
+                c.extra["far"] = True
+                return hit
         return self._site_page(c) if c.kind == "link" else None
 
     def _site_page(self, c: Claim) -> str | None:
@@ -514,6 +559,27 @@ class Checker:
     def _generated(c: Claim) -> bool:
         segs = c.target.replace("\\", "/").split("/")
         return any(s.lower() in GENERATED_DIRS for s in segs)
+
+    def _alternative(self, c: Claim) -> str:
+        """Another path the sentence offers in place of this one, when it is there: "the lockfile (`package-lock.json`,
+        `pnpm-lock.yaml`, `yarn.lock`)", "`dependabot.yml` or `renovate.json`". The line names a choice, and the
+        repo made it."""
+        sentence = self.sentence(c)
+        if c.text not in sentence:
+            return ""
+        groups = [g for g in re.findall(r"\(([^()]*)\)", sentence) if c.text in g]
+        i = sentence.index(c.text)
+        clause = sentence[max(0, i - 60): i + len(c.text) + 60]
+        if re.search(r"(?:`|\S)\**\s+(?:or|hoặc|hay)\s+\**`", clause) or re.search(r"`\s*/\s*`", clause):
+            groups.append(clause)
+        for g in groups:
+            for other in re.findall(r"`([^`]+)`", g):
+                if other == c.text or path_strength(clean_path_text(other)) == 0:
+                    continue
+                probe = Claim("path", other, clean_path_text(other), c.doc, c.line, c.col, c.ctx, {"cwd": c.extra.get("cwd")})
+                if any(self._exists(p) for p in self._cands(probe)):
+                    return other
+        return ""
 
     # -- main ----------------------------------------------------------------
     def run(self, claims: list) -> list:
@@ -594,6 +660,13 @@ class Checker:
                     continue
             if c.kind != "link" and self._generated(c):
                 c.status = "skipped"
+                continue
+            if c.kind == "link" and not c.target.startswith("/") and all(
+                    p.startswith("../") for p in self._cands(c)) and not any(self._exists(p) for p in self._cands(c)):
+                # `../docs/security.md` from the root README: the link leaves the repo. It works where this repo
+                # sits inside a bigger tree (a package published out of a monorepo) and nowhere else; no proof
+                c.status = "external"
+                self.add("link-outside", INFO, c)
                 continue
             hit = self.resolve(c)
             if hit is not None:
@@ -859,6 +932,13 @@ class Checker:
         # a line that names where it went ("move `a` to `b/`") describes the move: a record, not an error
         sev = INFO if c.kind != "link" and self._names_target(c, fol) else ERROR
         sug = self._follow_text(fol, ev, hit)
+        co = self._coedited(c, git, fol["sha"], hit) if fol and c.kind != "link" else []
+        if co:
+            sev, ev = INFO, ev + co
+        alt = self._alternative(c) if sev != INFO and c.kind != "link" else ""
+        if alt:
+            sev, ev = INFO, ev + [{"kind": "doc", "path": c.doc, "line": c.line,
+                                   "note": f"the line offers `{alt}` in its place, and that one is there"}]
         self.add(rule, sev, c, evidence=ev, suggestion=sug, when=day(epoch))
 
     @staticmethod
@@ -924,10 +1004,32 @@ class Checker:
         return (f"renamed to `{to}` in {fol['sha']} ({fol['date']}), later removed too" if self.lang != "vi"
                 else f"đã đổi thành `{to}` ở commit {fol['sha']} ({fol['date']}), sau đó cũng bị xóa")
 
+    def _example_pair(self, c: Claim) -> bool:
+        """The name sits in parentheses with another made-up one: "(`bash scripts/tool.sh`, `node scripts/tool.js`)".
+        Made-up names come in pairs; a real file the doc forgot comes alone."""
+        sentence = self.sentence(c)
+        for g in re.findall(r"\(([^()]*)\)", sentence):
+            if c.text not in g:
+                continue
+            for other in re.findall(r"`([^`]+)`", g):
+                if other == c.text:
+                    continue
+                argv = split_cmd(other)
+                target = clean_path_text(argv[-1] if argv else other)
+                if path_strength(target) == 0 or "/" not in target:
+                    continue
+                probe = Claim("path", other, target, c.doc, c.line, c.col, c.ctx, {"cwd": c.extra.get("cwd")})
+                if not any(self._exists(p) for p in self._cands(probe)):
+                    return True
+        return False
+
     def _never(self, c: Claim, *, missing: bool = True) -> None:
         """Never in the repo: report links, typos and clear commands; the rest is unverified."""
         if c.kind == "link":
             self._never_links[c.doc].append(c)
+            return
+        if c.kind in ("command", "path") and self._example_pair(c):
+            c.status = "unverified"
             return
         near = self._near(c)
         if near and not (c.kind == "path" and self._in_code_strings(c.target.replace("\\", "/").rstrip("/"))):
@@ -1093,8 +1195,12 @@ class Checker:
                 for c in links:
                     c.status = "external"
                 continue
+            source = SOURCE_DOC.search(doc) is not None      # its links are for the page it builds
             for c in links:
-                self.add("link-broken", INFO if self.acknowledged(c) else ERROR, c, suggestion=self._elsewhere(c))
+                self.add("link-broken", INFO if source or self.acknowledged(c) else ERROR, c,
+                         suggestion=self._elsewhere(c) or (
+                             "" if not source else "the links of a doc source are written for the page it builds"
+                             if self.lang != "vi" else "link trong file nguồn tài liệu viết cho trang nó sinh ra"))
         self._never_links.clear()
 
     def _elsewhere(self, c: Claim) -> str:
@@ -1456,8 +1562,10 @@ class Checker:
                 ev = [{"kind": "git", "rev": "HEAD" if now_line else rev[:10], "date": "" if now_line else day(epoch),
                        "path": where[0], "line": where[1],
                        "note": f"`{gone[0]}` was used here" if used else f"`{gone[0]}` was here"}]
-                if not now_line:
-                    ev += self._removed_by(git, rev, where[0], gone[0])
+                removed = self._removed_by(git, rev, where[0], gone[0]) if not now_line else []
+                ev += removed
+                co = self._coedited(c, git, removed[0]["rev"], where[0]) if removed and what != "flag" else []
+                ev += co
                 sug = self._rename_hint(gone[0], where[0], flag=what == "flag")
                 if what == "flag":
                     # the whole script left the repo (an installer moved to its own repo, completions
@@ -1473,8 +1581,8 @@ class Checker:
                     left = self._package_left(git, where[0], rev)
                     if left:
                         ev.append({"kind": "git", "path": left, "note": "this package is no longer in the repo"})
-                    self.add("symbol-gone", INFO if used or left else WARNING, c, evidence=ev, suggestion=sug,
-                             when=day(epoch))
+                    self.add("symbol-gone", INFO if used or left or co else WARNING, c, evidence=ev,
+                             suggestion=sug, when=day(epoch))
 
     def _package_left(self, git, path: str, rev: str) -> str:
         """The package folder that held `path`, when the package left the repo and lives on elsewhere: the
@@ -1679,7 +1787,12 @@ class Checker:
             for n, text in d.prose:
                 if n in d.ignored:
                     continue
-                s = re.sub(r"[`*_>#|]", " ", text).strip().lower()
+                # the same sentence about different pull requests ("landed in [PR #2002](…/pull/2002)") is no
+                # copy: a link's address and an issue or PR number are not figures of the sentence
+                s = re.sub(r"^\s*\d+[.)]\s+", "", text)      # `3. **WebFetch** - …`: the item's number is no figure
+                s = re.sub(r"\]\([^)]*\)", "]()", s)
+                s = re.sub(r"(?:#|\b(?:pr|issue|pull|issues|mr)\s*#?)\d+", " ref ", s, flags=re.I)
+                s = re.sub(r"[`*_>#|]", " ", s).strip().lower()
                 s = re.sub(r"\s+", " ", s)
                 if len(s) < 50 or "copyright" in s or "©" in s:
                     continue        # the second: a copyright line keeps the year its file was born

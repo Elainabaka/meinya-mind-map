@@ -49,7 +49,7 @@ Muốn có trang như trong ảnh, thêm `--format html --out report.html`. Tran
 
 1. **Phát hiện nào cũng kèm bằng chứng.** Một file và số dòng, hoặc mã commit kèm ngày và tiêu đề. Bạn kiểm lại được chính công cụ kiểm.
 2. **Nó đọc lịch sử.** Với mỗi dòng tài liệu, nó hỏi git dòng đó được viết lúc nào và ở commit đó repo có gì. "File này còn đó lúc bạn viết dòng này, và commit `b81c7e1` đã dời nó đi" là lỗi. "Tên này chưa từng có trong repo" thì thường là ví dụ, dự án khác hoặc file của chính người đọc, nên nó im lặng.
-3. **Không có bằng chứng thì không cảnh báo.** Kế hoạch, nhật ký thay đổi, sổ quyết định và bài viết có ngày tháng cố ý kể về một thời điểm khác, nên được đọc với luật lỏng hơn. Phát hiện có ba mức, mức thấp nhất (ghi chú) chỉ hiện khi bạn yêu cầu.
+3. **Không có bằng chứng thì không cảnh báo.** Kế hoạch, nhật ký thay đổi, sổ quyết định và bài viết có ngày tháng cố ý kể về một thời điểm khác, nên được đọc với luật lỏng hơn. Một dòng mà ngữ cảnh cho thấy là biên bản hay kế hoạch cũng vậy: dưới tiêu đề `## Resolved` hay `## Tasks`, trong hàng bảng ghi "extracted", trong mục ghi "(done: #6)" hay còn là ô `- [ ]` chưa tích, trong câu có ngày tháng và động từ quá khứ. Phát hiện như thế thành ghi chú và nói rõ chữ nào khiến nó thành ghi chú. Phát hiện có ba mức, mức thấp nhất (ghi chú) chỉ hiện khi bạn yêu cầu.
 4. **Mặc định chỉ báo sự thật, phỏng đoán thì phải xin.** Có loại phát hiện dựa trên sự thật của repo (link tới file không có, file mà git thấy đã xóa, script mà `package.json` không có). Có loại dựa trên việc đọc câu chữ (một tên có vẻ đã mất, một đường dẫn có vẻ bị bịa), và trên các repo chưa từng gặp, loại này nhầm nhiều hơn đúng. Khi chạy lệnh, trong CI và pre-commit, loại thứ hai chỉ là ghi chú, trừ khi thêm `--all`. Agent viết code (qua MCP và hook) thấy cả hai, kèm một dòng nhắc đọc từng cái trong ngữ cảnh: trong phép thử của chúng tôi, agent để yên mọi báo nhầm.
 5. **Nó chỉ đọc.** Nó không sửa tài liệu hay code, không chạy code của repo đang kiểm, và không mở những file thường chứa bí mật.
 
@@ -71,7 +71,7 @@ Muốn có trang như trong ảnh, thêm `--format html --out report.html`. Tran
 
 Phỏng đoán, khi chạy lệnh thì thành ghi chú trừ khi có `--all`: `symbol-gone`, `symbol-removed-now`, `path-missing`, `path-typo`, `make-target-missing`, `subcommand-missing`, `decision-unknown`, `copies-diverged`, `version-mismatch`, `dep-mismatch`.
 
-Ghi chú, hiện khi thêm `--severity info`: `stale-risk` (code mà tài liệu mô tả đã đổi sau tài liệu), `link-unverified` và `anchor-unverified` (địa chỉ chỉ site đã dựng mới xác nhận được), `foreign-links` (tài liệu chép từ dự án khác sang).
+Ghi chú, hiện khi thêm `--severity info`: `stale-risk` (code mà tài liệu mô tả đã đổi sau tài liệu), `link-unverified` và `anchor-unverified` (địa chỉ chỉ site đã dựng mới xác nhận được), `link-outside` (link rời khỏi repo), `foreign-links` (tài liệu chép từ dự án khác sang).
 
 ### Luật viết bằng lời mà máy giữ hộ
 

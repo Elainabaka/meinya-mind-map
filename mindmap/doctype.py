@@ -3,8 +3,10 @@
 - history: changelogs, decision logs, lessons, archives. They describe the
   past on purpose, so stale references are expected; only decision ids are
   checked.
-- plan: plans, proposals, drafts, task tickets. They describe intent at a
+- plan: plans, proposals, drafts, task tickets, RFDs. They describe intent at a
   point in time; drift is reported as info only.
+- template: a doc filled in elsewhere (`{repo}`, `{local-path}` in its opening):
+  a prompt or a form about whatever it is run on. Read like a plan.
 - live: everything else (README, AGENTS.md, CLAUDE.md, guides...). Full checks.
 
 Overridable with `history`, `plans` and `live` globs in .mindmap.toml, and in
@@ -45,6 +47,10 @@ STATUS_LINE = re.compile(
 PLAN_STATUS = {"draft", "proposed", "planned", "in progress", "wip", "approved"}
 # `**Date**: 2026-07-11` under the title: a dated record (an experiment, a meeting, a postmortem). Not the `date:`
 # of a site page's front matter, which every page of a Hugo or Jekyll site has
+# `# MCP Best Practices - May 26, 2025`: a title that carries its date is a note of its day
+DATED_TITLE = re.compile(
+    r"^\s{0,3}#\s+.*(?:\d{4}-\d{2}-\d{2}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? \d{1,2},? \d{4}|"
+    r"\b\d{1,2} (?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? \d{4}|\bngày \d{1,2}/\d{1,2}/\d{4})\s*\)?\s*$", re.I)
 DATE_LINE = re.compile(r"^\s{0,3}(?:\*\*|__)?date(?:\*\*|__)?\s*[:—–-]\s*(?:\*\*|__)?\s*\d{4}-\d{2}-\d{2}\b", re.I)
 
 
@@ -106,6 +112,8 @@ def _status_kind(lines: list[str]) -> str:
         if match:
             status = " ".join(match.group(1).lower().split())
             return "plan" if status in PLAN_STATUS else "history"
+        if DATED_TITLE.match(line):
+            return "plan"
         dated = dated or ((not end or number > end) and number < 10 + end and DATE_LINE.match(line) is not None)
     return "history" if dated else ""
 
@@ -130,6 +138,11 @@ def classify(path: str, cfg: dict | None = None, mark: str = "", old_version: bo
     stem = name.rsplit(".", 1)[0]
     if HISTORY_DIR.search(path):
         return "history"
+    if lines:
+        from .mood import genre
+        g = genre(lines)        # an RFD, a task list (plan); a prompt filled in elsewhere (template)
+        if g:
+            return g
     if DATED_NAME.match(name) and not is_post(path):
         return "plan"
     if HISTORY_NAME.search(stem):
