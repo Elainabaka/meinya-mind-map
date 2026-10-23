@@ -600,9 +600,14 @@ class Extractor:
             while stack and stack[-1][0] >= i:
                 stack.pop()
             if has_placeholder(name) or (" " in name and not name.endswith("/")):
+                if name.endswith("/") and has_placeholder(name):
+                    stack.append((i, None))     # `[agent_name]/`: whatever is drawn below it has no known path
                 continue          # "...", "<repo>/", or a description, not an entry
             if TREE_JUNK.search(name) or not re.match(r"^[\w.@+~-]", name):
                 continue          # arrows, boxes: a diagram, not a file tree
+            if stack and stack[-1][1] is None:
+                stack.append((i, None))
+                continue
             parent = stack[-1][1] if stack else base
             rel = posixpath.normpath(posixpath.join(parent, name.rstrip("/"))) if parent else name.rstrip("/")
             stack.append((i, rel))

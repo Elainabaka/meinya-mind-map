@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+**Reads the mood of a line before judging it.** A doc line is only wrong when it meant to describe the code as it
+is. Lines under `## Resolved` or `## Implemented`, table rows with a verdict ("extracted (#7)"), plan items marked
+"(done: #6)", open task boxes `- [ ]`, the steps of an RFD, a sentence with a date and a past verb, a hedge like
+"(if present)": these are records and plans, and a name gone from the code is their point. Such findings are now
+notes, each with the piece of text that gave it away (`mindmap/mood.py`; numbers in `docs/bao-nham-2026-10.md`:
+on four sets of repos never seen before, 65 false alarms out of 97 findings became 0, with no real finding lost).
+
+Also:
+
+- A commit that took a name away and edited the doc in the same change: the author kept the line, a note.
+  Not in an agent's instruction file.
+- Docs written on a template: an RFD (`Author(s):`, `Champion:`, `## Status quo`), an investigation with a
+  `**Recommendation:**`, a task list of `- [ ]` boxes are plans; a prompt filled in elsewhere (`{repo}`,
+  `{local-path}`) is a `template`, about whatever it is run on; a title that carries its date is a note of its day.
+- The source of a generated doc (`README.src.md`, `guide.tmpl.md`) has its links read for the page it builds.
+- `copies-diverged` no longer counts PR and issue numbers, link addresses or the numbers of list items.
+- A path offered among alternatives one of which is there ("`CLAUDE.md` or `AGENTS.md`"), and a pair of made-up
+  names in parentheses ("(`bash scripts/tool.sh`, `node scripts/tool.js`)"), are not findings.
+- A tree the doc says a run creates (`## Output Directory Structure`, "creates:"), and entries under a placeholder
+  folder (`[agent_name]/`), are not the repo's files. Commands after `cd` into a repo the reader just cloned belong
+  to that repo.
+- `link-outside`, a note: a link that leaves the repo (`../docs/x.md` from the root README) works only where the
+  repo sits inside a bigger tree.
+
 ## 1.0.0 (2026-10-09)
 
 **Facts by default, guesses on request.** On the command line, in the GitHub Action and in pre-commit, findings

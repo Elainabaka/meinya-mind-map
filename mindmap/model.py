@@ -68,6 +68,10 @@ MESSAGES = {
         "link target `{claim}` does not exist",
         "link trỏ tới `{claim}` không tồn tại",
     ),
+    "link-outside": (
+        "link target `{claim}` is outside the repo; it works only where this repo sits inside a bigger tree",
+        "link trỏ tới `{claim}` nằm ngoài repo; chỉ mở được khi repo này nằm trong một cây lớn hơn",
+    ),
     "link-unverified": (
         "site addresses with no page in the repo ({count}): {sample}; if the site makes these pages itself, nothing is wrong",
         "địa chỉ site không có trang nào trong repo ({count}): {sample}; nếu site tự sinh các trang này thì không sao",
@@ -213,6 +217,13 @@ NOTE_FORMS_VI = (
     (re.compile(r"^(`[^`]+`) was used here$"), r"\1 từng được dùng ở đây"),
     (re.compile(r"^removed by this commit: (.*)$", re.S), r"bị bỏ ở commit này: \1"),
     (re.compile(r"^the heading (`.+?`) was removed by this commit: (.*)$", re.S), r"mục \1 bị bỏ ở commit này: \2"),
+    (re.compile(r"^the section (`.+?`) tells of the past$"), r"mục \1 kể chuyện đã qua"),
+    (re.compile(r"^the section (`.+?`) is a plan$"), r"mục \1 là kế hoạch"),
+    (re.compile(r"^the item is marked (`.+?`)$"), r"mục này được đánh dấu \1"),
+    (re.compile(r"^the sentence tells of the past: (.*)$"), r"câu này kể chuyện đã qua: \1"),
+    (re.compile(r"^the sentence hedges: (.*)$"), r"câu này có điều kiện: \1"),
+    (re.compile(r"^the line offers (`.+?`) in its place, and that one is there$"), r"dòng này nêu \1 thay thế, và cái đó có"),
+    (re.compile(r"^this commit also edited the doc and kept the line$"), r"commit này cũng sửa tài liệu mà vẫn giữ dòng này"),
 )
 
 

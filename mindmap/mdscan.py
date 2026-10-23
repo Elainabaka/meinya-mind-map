@@ -47,7 +47,11 @@ READER_TREE = re.compile(
     r"your(?:\s+[\w-]+){0,3}\s+(?:project|site|content|repository|repo|app)|"
     r"(?:you|we)\s+(?:can|could|should|may|might|must|will)\s+(?:also\s+)?(?:create|scaffold)|"
     r"(?:you|we)\s+(?:can|could|should|may|might|must|will)\b[^.!?\n]{0,100}\bby\s+(?:creating|adding|generating|scaffolding)|"
-    r"a[n]?\b[^.!?\n]{0,100}\bis\s+a[n]?\s+(?:file|directory)\b)", re.I)
+    r"a[n]?\b[^.!?\n]{0,100}\bis\s+a[n]?\s+(?:file|directory)\b|"
+    r"\b(?:creates?|generates?|produces?|scaffolds?|writes?|emits?|outputs?|will\s+(?:create|generate|produce|write))\s*:?\s*$|"
+    r"\b(?:output|generated|resulting)\s+(?:directory|folder|file|project)?\s*(?:structure|layout|tree)\b)", re.I)
+# the heading over a tree of what a run makes: `## Output Directory Structure`, `### Generated files`
+OUTPUT_HEADING = re.compile(r"\b(?:output|generated|resulting|scaffolded)\b", re.I)
 
 
 def _clone_directory(line: str) -> str | None:
@@ -267,6 +271,7 @@ def scan(path: str, text: str) -> Doc:
     fence = None
     prompted = False
     cloned: set[str] = set()
+    inside = False
     fence_context = ""
     fence_heading = ""
     context_start = 0
@@ -303,7 +308,7 @@ def scan(path: str, text: str) -> Doc:
         introduction, re.I)
 
     def add_fence() -> None:
-        illustrative = READER_TREE.search(fence_context) or (skill_examples and re.search(
+        illustrative = READER_TREE.search(fence_context) or OUTPUT_HEADING.search(fence_heading) or (skill_examples and re.search(
             r"\b(?:visual overview|pattern\s+\d+|(?:project|file|test|directory|folder|skill)\s+(?:\w+\s+)?(?:structure|organization|layout))\b",
             fence_heading, re.I))
         following = "\n".join(lines[n:n + 8])
@@ -333,9 +338,15 @@ def scan(path: str, text: str) -> Doc:
                     if directory:
                         cloned.add(directory)
                     change = CLONE_CD.fullmatch(command)
-                    if change and posixpath.normpath(change.group(1).strip("\"'").replace("\\", "/")) in cloned:
-                        doc.entered.add(posixpath.normpath(change.group(1).strip("\"'").replace("\\", "/")))
-                        continue
+                    if change:
+                        target = posixpath.normpath(change.group(1).strip("\"'").replace("\\", "/"))
+                        if target in cloned:
+                            doc.entered.add(target)
+                            inside = True       # from here the commands run in the other project
+                            continue
+                        inside = False          # `cd ..`: back out of it
+                    if inside and command.strip() and not command.lstrip().startswith("#"):
+                        continue                # `pnpm run build:all` of the project just cloned
                     fence.lines.append((n, command))
             continue
 
@@ -386,6 +397,7 @@ def scan(path: str, text: str) -> Doc:
             fence = Fence(n, (m.group(3) or "").lower())
             prompted = False
             cloned = set()
+            inside = False
             fence_context = "\n".join(text for line_no, text in doc.prose[-8:]
                                       if line_no >= context_start and n - line_no <= 20)
             fence_heading = doc.headings[-1].text if doc.headings else ""

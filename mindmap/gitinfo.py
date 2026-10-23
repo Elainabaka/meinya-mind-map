@@ -329,6 +329,15 @@ class Git:
             self._in_tree[(rev, rel)] = top in have
         return {rel for rel in rels if self._in_tree[(rev, rel)]}
 
+    def touched(self, rev: str, rel: str) -> bool:
+        """Did the commit `rev` itself change `rel`? (A merge counts when any of its sides did.)"""
+        key = ("touched", rev, rel)
+        if key not in self._in_tree:
+            out = self._git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-m", rev, "--", self.to_top(rel)],
+                            timeout=30)
+            self._in_tree[key] = bool(out and out.strip())
+        return self._in_tree[key]
+
     def is_ancestor(self, older: str, newer: str) -> bool:
         """Does `newer` come after `older` on the same line of history?"""
         key = (older, newer)
