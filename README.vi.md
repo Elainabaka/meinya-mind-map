@@ -240,7 +240,7 @@ Một thí nghiệm nữa: đổi tên một lớp trong starlette (`CORSMiddlew
 - Bản clone nông có ít lịch sử nên ra ít phát hiện hơn (không bao giờ nhiều hơn). Trong CI hãy lấy đủ lịch sử.
 - Nếu git không trả lời kịp (mỗi lần gọi có giới hạn thời gian thật, hết giờ ba lần trong một lượt thì thôi không hỏi nữa), báo cáo ghi rõ bao nhiêu câu hỏi không được trả lời: một dòng `!`, `stats.git_unanswered` trong JSON, một dòng ở stderr. Báo cáo như vậy có thể thiếu phát hiện: hãy chạy lại. Mã thoát vẫn chỉ theo phát hiện.
 - Chưa bộ repo lạ nào qua được chuẩn "lượt đầu nhầm tối đa 1 trên 10" (bộ gần nhất: 24 trên 61, đều từ hai repo). Repo có thói quen riêng có thể gặp vài báo nhầm; hãy báo cho chúng tôi: tới giờ mỗi lần đều là một nguyên nhân chung, vá một lần cho mọi repo.
-- Trạng thái: 1.0.0. Cần Python 3.11 trở lên; có git thì thêm lịch sử, repo không có git vẫn được soát. Đã thử trên Windows: 459 test trên Python 3.13, trong đó 360 của Mind Map; trên Python 3.11 các test Mind Map cũng xanh (bỏ qua 1 test cần 3.12). Linux (Python 3.14) mới thử tới bản 0.1.0. Chưa thử: macOS.
+- Trạng thái: 1.0.0. Cần Python 3.11 trở lên; có git thì thêm lịch sử, repo không có git vẫn được soát. Đã thử trên Windows: 459 test trên Python 3.13, trong đó 360 của Mind Map; trên Python 3.11 các test Mind Map cũng xanh (bỏ qua 1 test cần 3.12). Linux (Ubuntu, Python 3.13, máy sạch, cài bằng `uv tool install` rồi chạy các lệnh trong file này): test Mind Map đều qua (bốn file cần `pywebview` bị bỏ qua). Chưa thử tay: macOS.
 
 ## An toàn
 
@@ -313,7 +313,14 @@ Bảo mật: nội dung Markdown được escape khi ra HTML, nhưng tool không
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-`pytest` không đi kèm app, chỉ cài khi bạn muốn chạy test. Nếu chưa cài `pywebview`, hai file test giao diện (`test_api.py`, `test_drop.py`) bị bỏ qua, phần còn lại vẫn chạy ở mọi nơi.
+Trên Linux hoặc macOS không có `run.bat` và `.venv\Scripts`, nên dùng Python của hệ thống (hoặc một venv bạn tự tạo):
+
+```bash
+python3 -m pip install pytest
+python3 -m pytest tests -q
+```
+
+`pytest` không đi kèm app, chỉ cài khi bạn muốn chạy test. Nếu chưa cài `pywebview` (máy Linux sạch thì chưa có), bốn file test cần cửa sổ app (`test_api.py`, `test_drop.py`, `test_i18n.py`, `test_mindmap_ui.py`) bị bỏ qua, phần còn lại vẫn chạy ở mọi nơi: trên Ubuntu với Python 3.13 là 408 test qua và 4 bị bỏ qua.
 
 ## Giấy phép
 

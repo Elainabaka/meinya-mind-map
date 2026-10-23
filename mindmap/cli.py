@@ -25,16 +25,33 @@ def _out(text: str, path: str | None) -> None:
             sys.stdout.buffer.write(text.encode("utf-8", "replace"))
 
 
+def _fail(message: str) -> int:
+    print(f"mindmap: {message}", file=sys.stderr)
+    return 2
+
+
+def _inside(path: Path, root: Path) -> bool:
+    return path == root or root in path.parents
+
+
 def cmd_check(a) -> int:
     from . import engine, report
     root = Path(a.path).resolve()
+    if not root.exists():
+        return _fail(f"{a.path}: no such file or folder")
+    if a.root and not Path(a.root).is_dir():
+        return _fail(f"{a.root}: --root is not a folder")
     focus = None
     if root.is_file():
         focus_file = root
         root = Path(a.root).resolve() if a.root else _repo_root(root.parent)
+        if not _inside(focus_file, root):
+            return _fail(f"{a.path} is not inside the root {root}")
         focus = [focus_file.relative_to(root).as_posix()]
     elif a.root:
         r = Path(a.root).resolve()
+        if not _inside(root, r):
+            return _fail(f"{a.path} is not inside the root {r}")
         focus = [root.relative_to(r).as_posix()] if root != r else None
         root = r
     baseline = Path(a.baseline) if a.baseline else None
@@ -90,23 +107,33 @@ def cmd_hook(a) -> int:
 
 def cmd_impact(a) -> int:
     from . import impact
+    if a.root and not Path(a.root).is_dir():
+        return _fail(f"{a.root}: no such folder")
     return impact.cli(a)
 
 
 def cmd_cost(a) -> int:
     from . import cost
+    if a.path and not Path(a.path).is_dir():
+        return _fail(f"{a.path}: no such folder")
     return cost.cli(a)
 
 
 def cmd_context(a) -> int:
     from . import context
+    if a.root and not Path(a.root).is_dir():
+        return _fail(f"{a.root}: no such folder")
     return context.cli(a)
 
 
 def cmd_claims(a) -> int:
     from . import engine
     doc = Path(a.doc).resolve()
+    if not doc.is_file():
+        return _fail(f"{a.doc}: no such file")
     root = Path(a.root).resolve() if a.root else _repo_root(doc.parent)
+    if not _inside(doc, root):
+        return _fail(f"{a.doc} is not inside the root {root}")
     rel = doc.relative_to(root).as_posix()
     res = engine.run(root, lang=a.lang, focus=[rel])
     for c in res.claims:

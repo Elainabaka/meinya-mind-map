@@ -288,7 +288,7 @@ A second experiment: rename one class in starlette (`CORSMiddleware` to `CorsMid
 - A shallow clone has less history, so it gives fewer findings (never more). In CI, fetch the full history.
 - If git does not answer in time (each call has a hard time limit, and after three timeouts in one run it stops asking), the report says how many questions went unanswered: a `!` line, `stats.git_unanswered` in JSON, a line on stderr. Such a report may miss findings: run it again. The exit code still follows the findings only.
 - No set of repos it had never seen has passed the bar of 1 false alarm in 10 on a first run yet (the last one: 24 in 61, all from two repos). Expect a few false alarms on a repo with habits of its own, and tell us: each one so far was a general cause, fixed once for every repo.
-- Status: 1.0.0. It needs Python 3.11 or newer; git adds the history, but a repo without it is still checked. Tested on Windows: 459 tests on Python 3.13, 360 of them for Mind Map; on Python 3.11 the Mind Map tests pass too (one is skipped: it needs 3.12). Linux (Python 3.14) was last tested with 0.1.0. Not tested yet: macOS.
+- Status: 1.0.0. It needs Python 3.11 or newer; git adds the history, but a repo without it is still checked. Tested on Windows: 459 tests on Python 3.13, 360 of them for Mind Map; on Python 3.11 the Mind Map tests pass too (one is skipped: it needs 3.12). Linux (Ubuntu, Python 3.13, a clean machine, `uv tool install` and the commands in this file): the Mind Map tests pass (the four files that need `pywebview` are skipped). Not tested by hand yet: macOS.
 
 ## Safety
 
@@ -320,7 +320,7 @@ python -m pip install pytest
 python -m pytest tests -q
 ```
 
-The two test files of the desktop window are skipped when `pywebview` is not installed. Everything else runs anywhere.
+The four test files that need the desktop window (`test_api.py`, `test_drop.py`, `test_i18n.py`, `test_mindmap_ui.py`) are skipped when `pywebview` is not installed, as it is on a clean Linux machine. Everything else runs anywhere: on Ubuntu with Python 3.13 that is 408 passing tests and 4 skipped.
 
 ## Licence
 

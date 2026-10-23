@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `check`, `claims`, `cost`, `context` and `impact` now stop with exit code 2 and a message on stderr when the path
+  or `--root` does not exist or the doc lies outside the root. Before, `check` on a missing folder printed
+  "0 docs" and exited 0 (a CI job passed on a typo), and `claims` on a missing file scanned the whole parent folder
+  (`/` for `/gone.md`) or crashed with a traceback.
+- README: the tests that need `pywebview` are four files, not two; Linux status and test commands updated.
+
 ## 1.0.0 (2026-10-09)
 
 **Facts by default, guesses on request.** On the command line, in the GitHub Action and in pre-commit, findings
